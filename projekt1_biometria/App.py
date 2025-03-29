@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from click import command
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
-from numpy.ma.core import negative
+#from numpy.ma.core import negative
 
 
 class SidePanel(ctk.CTkFrame):
@@ -26,12 +26,6 @@ class SidePanel(ctk.CTkFrame):
         self.contrast_slider.set(0)
         self.contrast_slider.grid(row=3, column=0, pady=10)
 
-        # self.threshold = ctk.CTkLabel(self, text='Binary threshold')
-        # self.threshold.grid(row=4, column=0, sticky="nsew")
-        # self.threshold = ctk.CTkSlider(self, from_=0, to=255, number_of_steps=255)
-        # self.threshold.set(10)
-        # self.threshold.grid(row=5, column=0, pady=10)
-
         self.vignette = ctk.CTkLabel(self, text="Vignette")
         self.vignette.grid(row=4, column=0, sticky="nsew")
         self.vignette_slider = ctk.CTkSlider(self, from_=0, to=1, number_of_steps=20)
@@ -47,6 +41,9 @@ class Edges_Panel(ctk.CTkFrame):
 
         self.roberts_cross_checkbox = ctk.CTkCheckBox(self, text="Roberts Cross")
         self.roberts_cross_checkbox.grid(row=1, column=0, pady=(0, 10))
+
+        self.sobel_checkbox = ctk.CTkCheckBox(self, text="Sobel")
+        self.sobel_checkbox.grid(row=2, column=0, pady=(0, 10))
 
 class FilterPanel(ctk.CTkFrame):
     def __init__(self, master):
@@ -118,7 +115,10 @@ class MainPanel(ctk.CTkFrame):
     def __init__(self, master):
         super().__init__(master)
         self.cached_roberts = None
+        self.cached_sobel = None
         self.last_roberts_state = False
+        self.last_sobel_state = False
+
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=3)
         self.grid_columnconfigure(2, weight=1)
@@ -153,7 +153,7 @@ class MainPanel(ctk.CTkFrame):
         self.image_frame = ctk.CTkFrame(self)
         self.image_frame.grid(row=1, column=1, padx=10, pady=10, sticky="nsew")
 
-        self.select_btn = ctk.CTkButton(self.image_frame, text="Wybierz obraz", command=self.load_image)
+        self.select_btn = ctk.CTkButton(self.image_frame, text="Select image", command=self.load_image)
         self.select_btn.grid(row=2, column=1, pady=20, padx=20, sticky="nsew")
 
         #na tym rysuje się zdjęcie
@@ -164,7 +164,7 @@ class MainPanel(ctk.CTkFrame):
         self.histogram_frame = ctk.CTkFrame(self.image_frame)
         self.histogram_frame.grid(row=4, column=1, pady=10)
 
-        self.button_save = ctk.CTkButton(self.image_frame, text="Zapisz rezultat", command=self.save_image)
+        self.button_save = ctk.CTkButton(self.image_frame, text="Save result", command=self.save_image)
         self.button_save.grid(row=5, column=1, pady=20)
 
         self.original_image_array = None
@@ -186,6 +186,7 @@ class MainPanel(ctk.CTkFrame):
         self.filter_panel.gaussian_sigma_slider.configure(command=self.update_image)
         self.side_panel.vignette_slider.configure(command=self.update_image)
         self.Edges_Panel.roberts_cross_checkbox.configure(command=self.update_image)
+        self.Edges_Panel.sobel_checkbox.configure(command=self.update_image)
 
     def load_image(self):
         file_path = filedialog.askopenfilename(filetypes=[("Image files", "*.png;*.jpg;*.jpeg;*.bmp")])
@@ -231,8 +232,6 @@ class MainPanel(ctk.CTkFrame):
             self.redo_btn.configure(state="disabled")
 
         image = self.original_image_array.copy()
-
-
         brightness = self.side_panel.brightness_slider.get()
         image = self.adjust_brigthness(image, brightness)
         contrast = self.side_panel.contrast_slider.get()
@@ -241,13 +240,21 @@ class MainPanel(ctk.CTkFrame):
         noise = self.right_panel.add_noise_slider.get()
         image= self.add_noise(image, noise)
         current_roberts_state = self.Edges_Panel.roberts_cross_checkbox.get()
+        current_sobel_state = self.Edges_Panel.sobel_checkbox.get()
+
         if current_roberts_state != self.last_roberts_state:
-            self.cached_roberts = None  # Wyczyść cache jeśli stan się zmienił
+            self.cached_roberts = None
         self.last_roberts_state = current_roberts_state
 
+        if current_sobel_state != self.last_sobel_state:
+            self.cached_sobel = None
+        self.last_sobel_state = current_sobel_state
 
         if self.Edges_Panel.roberts_cross_checkbox.get():
             image = self.roberts_cross(image)
+
+        if self.Edges_Panel.sobel_checkbox.get():
+            image = self.sobel_operator(image)
 
         if self.side_panel.contrast.get():
             image = self.adjust_contrast(image, contrast)
@@ -279,11 +286,16 @@ class MainPanel(ctk.CTkFrame):
         self.processed_image_array = image
         self.display_image()
 
+        if self.right_panel.binarize_checkbox.get():
+            self.display_projection(self.processed_image_array)
+        else:
+            self.display_histogram()
+
     def adjust_brigthness(self, image, brightness):
         return np.clip(image + brightness, 0, 255).astype(np.uint8)
 
     def adjust_contrast(self, image, contrast):
-        return 255*(image/np.max(image))**contrast
+        return (255*(image/np.max(image))**contrast).astype(np.uint8)
 
     def vignette(self, image, factor):
         height, width, _ = image.shape
@@ -359,6 +371,33 @@ class MainPanel(ctk.CTkFrame):
         }
         return result
 
+    def sobel_operator(self, image):
+        if len(image.shape) == 3:
+            image = self.to_greyscale(image)
+
+        # dla 0 stopni
+        kernel_x = np.array([[1, 0, -1],
+                             [2, 0, -2],
+                             [1, 0, -1]])
+
+        # dla 90 stopni
+        kernel_y = np.array([[1, 2, 1],
+                             [0, 0, 0],
+                             [-1, -2, -1]])
+
+        grad_x = self.convolve(image, kernel_x)
+        grad_y = self.convolve(image, kernel_y)
+
+        sobel = np.sqrt(grad_x.astype(np.float32) ** 2 + grad_y.astype(np.float32) ** 2)
+        sobel = np.clip(sobel, 0, 255).astype(np.uint8)
+
+        self.cached_sobel = {
+            'input': image.copy(),
+            'output': sobel.copy()
+        }
+
+        return np.stack((sobel,) * 3, axis=-1)
+
     def apply_average_filter(self, image, kernel_size=3):
         kernel = np.ones((kernel_size, kernel_size)) / (kernel_size * kernel_size)
         return self.convolve(image, kernel)
@@ -430,6 +469,36 @@ class MainPanel(ctk.CTkFrame):
         canvas.get_tk_widget().pack()
 
         plt.close(fig)
+
+    def display_projection(self, image):
+        for widget in self.histogram_frame.winfo_children():
+            widget.destroy()
+
+        if len(image.shape) == 3:
+            image = self.to_greyscale(image)
+
+        binary_image = np.where(image >= 128, 1, 0)
+
+        vertical_proj = np.sum(binary_image, axis=0)
+        horizontal_proj = np.sum(binary_image, axis=1)
+
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(5, 3), gridspec_kw={'height_ratios': [1, 1]})
+        ax1.plot(horizontal_proj)
+        ax1.set_title("Horizontal projection")
+        ax1.set_xlim(0, len(horizontal_proj))
+
+        ax2.plot(vertical_proj)
+        ax2.set_title("Vertical projection")
+        ax2.set_xlim(0, len(vertical_proj))
+
+        plt.tight_layout()
+
+        canvas = FigureCanvasTkAgg(fig, master=self.histogram_frame)
+        canvas.draw()
+        canvas.get_tk_widget().pack()
+
+        plt.close(fig)
+
 
 class ImageProcessorApp(ctk.CTk):
     def __init__(self):
