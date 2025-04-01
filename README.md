@@ -1,5 +1,3 @@
-readme_content = """# Aplikacja do Przetwarzania Obrazów
-
 ## Opis Projektu
 Jest to aplikacja desktopowa umożliwiająca wykonywanie podstawowych operacji na obrazach, takich jak:
 - Konwersja do skali szarości
