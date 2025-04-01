@@ -9,7 +9,7 @@ Jest to aplikacja desktopowa umożliwiająca wykonywanie podstawowych operacji n
 - Nakładanie filtrów: uśredniającego, gaussowskiego, wyostrzającego 
 - Dodawanie szumu
 - Detekcja krawędzi za pomocą krzyża Robertsa oraz operatora Sobela
-- 
+
 Aplikacja została napisana w języku Python z wykorzystaniem bibliotek **Tkinter** oraz **CustomTkinter** do interfejsu graficznego. Operacje na obrazach zostały zaimplementowane ręcznie, bez użycia bibliotek takich jak OpenCV.
 
 **Projekt został stworzony na potrzeby przedmiotu Biometria.**
@@ -27,3 +27,7 @@ Aby uruchomić aplikację, wymagane jest posiadanie:
 Instalacja wymaganych bibliotek:
 ```sh
 pip install numpy matplotlib pillow customtkinter
+
+## Autorzy
+- Jan Opala
+- Gabriela Majstrak
