@@ -27,7 +27,7 @@ Aby uruchomić aplikację, wymagane jest posiadanie:
 Instalacja wymaganych bibliotek:
 ```sh
 pip install numpy matplotlib pillow customtkinter
-
+```
 ## Autorzy
 - Jan Opala
 - Gabriela Majstrak
